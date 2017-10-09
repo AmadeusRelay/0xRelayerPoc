@@ -1,12 +1,16 @@
-import {ZeroEx, Token as ZeroExToken} from '0x.js';
-import Web3 = require('web3');
+import app from './App';
+import * as BigNumber from 'bignumber.js';
 
-document.onreadystatechange = function() {
-    let web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
-    let zeroEx = new ZeroEx(web3.currentProvider);
-    zeroEx.tokenRegistry.getTokensAsync().then(function(tokens) {
-         tokens.forEach(element => {
-             alert('Token '+ element.name + ' (' + element.symbol + ') with address ' + element.address);
-         });
-    });
-}
+const port = process.env.PORT || 3000;
+
+BigNumber.config({
+  EXPONENTIAL_AT: 1000
+});
+
+app.listen(port, (err: any) => {
+  if (err) {
+    return console.log(err);
+  }
+
+  return console.log(`server is listening on ${port}`);
+});
