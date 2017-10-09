@@ -44,7 +44,8 @@ sudo apt-get install curl
 Instalar o nvm (necessário para instalar o node):
 
 ```
-apt-get install build-essential libssl-dev
+sudo apt-get update
+sudo apt-get install build-essential libssl-dev
 curl -sL https://raw.githubusercontent.com/creationix/nvm/v0.31.0/install.sh -o install_nvm.sh
 bash install_nvm.sh
 source ~/.profile
