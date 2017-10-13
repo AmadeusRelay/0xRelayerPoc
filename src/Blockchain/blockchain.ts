@@ -1,6 +1,6 @@
-import {ZeroEx, Token, TransactionReceiptWithDecodedLogs} from '0x.js';
+import {ZeroEx, Order, SignedOrder, Token, TransactionReceiptWithDecodedLogs} from '0x.js';
 import Web3 = require('web3');
-import {BigNumber} from 'bignumber.js';
+import * as BigNumber from 'bignumber.js';
 import * as _ from 'lodash';
 
 export default class Blockchain {
@@ -16,13 +16,13 @@ export default class Blockchain {
         return await this.zeroEx.tokenRegistry.getTokenBySymbolIfExistsAsync(symbol);
     }
 
-    public async transferZRXTo(address: string, amount: BigNumber): Promise<TransactionReceiptWithDecodedLogs> {
+    public async transferZRXTo(address: string, amount: BigNumber.BigNumber): Promise<TransactionReceiptWithDecodedLogs> {
         const token : Token = await this.getToken('ZRX');
         const txHash : string = await this.zeroEx.token.transferAsync(token.address, this.web3.eth.coinbase, address, amount);
         return await this.zeroEx.awaitTransactionMinedAsync(txHash);
     }
 
-    public async getBalance(address: string, symbol: string): Promise<BigNumber> {
+    public async getBalance(address: string, symbol: string): Promise<BigNumber.BigNumber> {
         if (!_.isUndefined(symbol) && symbol !== '') {
             const token : Token = await this.getToken(symbol);
             return this.zeroEx.token.getBalanceAsync(token.address, address);
@@ -30,5 +30,32 @@ export default class Blockchain {
         else {
             return this.web3.eth.getBalance(address);
         }
-    }
+	}
+	
+	public async getSignedOrder(symbol: string): Promise<SignedOrder> {
+		const token : Token = await this.getToken(symbol);
+		const order = {
+			ecSignature: null,
+			exchangeContractAddress: await this.zeroEx.exchange.getContractAddressAsync(),
+			expirationUnixTimestampSec: new BigNumber.BigNumber(0),
+			feeRecipient: this.web3.eth.coinbase,
+			maker: this.web3.eth.coinbase,
+			makerFee: new BigNumber.BigNumber('0'),
+			makerTokenAddress: token.address,
+			makerTokenAmount: await this.getBalance(token.address, symbol),
+			taker: '',
+			takerFee: new BigNumber.BigNumber('0'),
+			takerTokenAddress: await this.zeroEx.etherToken.getContractAddressAsync(),
+			takerTokenAmount: new BigNumber.BigNumber('0'),
+			salt: ZeroEx.generatePseudoRandomSalt()
+		};
+
+		const orderHash = ZeroEx.getOrderHashHex(order);
+		order.ecSignature = await this.zeroEx.signOrderHashAsync(orderHash, this.web3.eth.coinbase);
+		return order as SignedOrder;
+	}
+
+	public async fillOrder(order: SignedOrder, takerAmount: BigNumber.BigNumber, takerAddress: string): Promise<string> {
+		return this.zeroEx.exchange.fillOrderAsync(order, takerAmount, false, takerAddress);
+	}
 }

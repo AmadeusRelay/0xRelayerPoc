@@ -65,6 +65,15 @@ sudo add-apt-repository -y ppa:ethereum/ethereum
 sudo apt-get update
 sudo apt-get install ethereum
 ```
+
+### Ambiente Windows
+
+~To-Do: instalar cliente ethereum~
+
+Instalar dependências (através de um prompt com privilégios de administrador):
+
+npm install --global --production windows-build-tools
+
 ##
 
 Nesse ponto, estará com o geth instalado. Daqui em diante, é igual para Mac e Linux. Pode executar ele na testnet através do comando:

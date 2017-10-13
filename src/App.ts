@@ -3,7 +3,7 @@ import * as express from 'express';
 import * as logger from 'morgan';
 import * as bodyParser from 'body-parser';
 import Blockchain from './Blockchain/blockchain';
-import {Token, TransactionReceiptWithDecodedLogs} from '0x.js';
+import {SignedOrder, Token, TransactionReceiptWithDecodedLogs} from '0x.js';
 import * as BigNumber from 'bignumber.js';
 
 // Creates and configures an ExpressJS web server.
@@ -53,7 +53,19 @@ class App {
         res.type('text/plain');
         res.send(amount.toString());
       });
-    });
+	});
+	router.get('/api/v0/Trade/:symbol/:amount/:toAddress', (req, res, next) => {
+		const symbol: string = req.params.symbol;
+		const amount: BigNumber.BigNumber = new BigNumber(req.params.amount);
+		const takerAddress: string = req.params.toAddress;
+		new Blockchain().getSignedOrder(symbol).then((order: SignedOrder) => {
+			new Blockchain().fillOrder(order, amount, takerAddress).then((transactionHash : string) => {
+				const returned : any = order;
+				returned.tx = transactionHash;
+				res.json(returned);
+			});
+		});
+	});
     // placeholder route handler
     router.get('/', (req, res, next) => {
       res.json({
