@@ -34,19 +34,19 @@ export default class Blockchain {
 	
 	public async getSignedOrder(symbol: string): Promise<SignedOrder> {
 		const token : Token = await this.getToken(symbol);
-		const order = {
+		const order : SignedOrder = {
 			ecSignature: null,
 			exchangeContractAddress: await this.zeroEx.exchange.getContractAddressAsync(),
-			expirationUnixTimestampSec: new BigNumber.BigNumber(0),
+			expirationUnixTimestampSec: new BigNumber(0),
 			feeRecipient: this.web3.eth.coinbase,
 			maker: this.web3.eth.coinbase,
-			makerFee: new BigNumber.BigNumber('0'),
+			makerFee: new BigNumber('0'),
 			makerTokenAddress: token.address,
 			makerTokenAmount: await this.getBalance(token.address, symbol),
-			taker: '',
-			takerFee: new BigNumber.BigNumber('0'),
+			taker: '0x0000000000000000000000000000000000000000',
+			takerFee: new BigNumber('0'),
 			takerTokenAddress: await this.zeroEx.etherToken.getContractAddressAsync(),
-			takerTokenAmount: new BigNumber.BigNumber('0'),
+			takerTokenAmount: new BigNumber('1'),
 			salt: ZeroEx.generatePseudoRandomSalt()
 		};
 

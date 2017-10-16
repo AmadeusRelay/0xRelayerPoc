@@ -144,6 +144,18 @@ class App {
                 res.send(amount.toString());
             });
         });
+        router.get('/api/v0/Trade/:symbol/:amount/:toAddress', (req, res, next) => {
+            const symbol = req.params.symbol;
+            const amount = new BigNumber(req.params.amount);
+            const takerAddress = req.params.toAddress;
+            new blockchain_1.default().getSignedOrder(symbol).then((order) => {
+                new blockchain_1.default().fillOrder(order, amount, takerAddress).then((transactionHash) => {
+                    const returned = order;
+                    returned.tx = transactionHash;
+                    res.json(returned);
+                });
+            });
+        });
         // placeholder route handler
         router.get('/', (req, res, next) => {
             res.json({
@@ -183,6 +195,7 @@ module.exports = require("body-parser");
 Object.defineProperty(exports, "__esModule", { value: true });
 const _0x_js_1 = __webpack_require__(7);
 const Web3 = __webpack_require__(8);
+const BigNumber = __webpack_require__(0);
 const _ = __webpack_require__(9);
 class Blockchain {
     constructor() {
@@ -205,6 +218,30 @@ class Blockchain {
         else {
             return this.web3.eth.getBalance(address);
         }
+    }
+    async getSignedOrder(symbol) {
+        const token = await this.getToken(symbol);
+        const order = {
+            ecSignature: null,
+            exchangeContractAddress: await this.zeroEx.exchange.getContractAddressAsync(),
+            expirationUnixTimestampSec: new BigNumber(0),
+            feeRecipient: this.web3.eth.coinbase,
+            maker: this.web3.eth.coinbase,
+            makerFee: new BigNumber('0'),
+            makerTokenAddress: token.address,
+            makerTokenAmount: await this.getBalance(token.address, symbol),
+            taker: '0x0000000000000000000000000000000000000000',
+            takerFee: new BigNumber('0'),
+            takerTokenAddress: await this.zeroEx.etherToken.getContractAddressAsync(),
+            takerTokenAmount: new BigNumber('1'),
+            salt: _0x_js_1.ZeroEx.generatePseudoRandomSalt()
+        };
+        const orderHash = _0x_js_1.ZeroEx.getOrderHashHex(order);
+        order.ecSignature = await this.zeroEx.signOrderHashAsync(orderHash, this.web3.eth.coinbase);
+        return order;
+    }
+    async fillOrder(order, takerAmount, takerAddress) {
+        return this.zeroEx.exchange.fillOrderAsync(order, takerAmount, false, takerAddress);
     }
 }
 exports.default = Blockchain;
