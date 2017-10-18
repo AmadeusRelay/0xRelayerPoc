@@ -60,14 +60,14 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 1);
+/******/ 	return __webpack_require__(__webpack_require__.s = 3);
 /******/ })
 /************************************************************************/
 /******/ ([
 /* 0 */
 /***/ (function(module, exports) {
 
-module.exports = require("bignumber.js");
+module.exports = require("lodash");
 
 /***/ }),
 /* 1 */
@@ -76,8 +76,41 @@ module.exports = require("bignumber.js");
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const App_1 = __webpack_require__(2);
-const BigNumber = __webpack_require__(0);
+const BigNumber = __webpack_require__(2);
+const _ = __webpack_require__(0);
+exports.Utils = {
+    toUnixTimestamp(date) {
+        return new BigNumber(date.unix());
+    },
+    toBaseUnit(unit) {
+        return exports.Utils.toBaseUnitWithDecimals(unit, undefined);
+    },
+    toBaseUnitWithDecimals(unit, decimals) {
+        if (_.isUndefined(decimals) || !_.isNumber(decimals)) {
+            decimals = 18;
+        }
+        const toUnit = new BigNumber(10).pow(decimals);
+        const baseUnitAmount = new BigNumber(unit).times(toUnit);
+        return baseUnitAmount;
+    }
+};
+
+
+/***/ }),
+/* 2 */
+/***/ (function(module, exports) {
+
+module.exports = require("bignumber.js");
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const App_1 = __webpack_require__(4);
+const BigNumber = __webpack_require__(2);
 const port = process.env.PORT || 3000;
 BigNumber.config({
     EXPONENTIAL_AT: 1000
@@ -91,17 +124,18 @@ App_1.default.listen(port, (err) => {
 
 
 /***/ }),
-/* 2 */
+/* 4 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const express = __webpack_require__(3);
-const logger = __webpack_require__(4);
-const bodyParser = __webpack_require__(5);
-const blockchain_1 = __webpack_require__(6);
-const BigNumber = __webpack_require__(0);
+const express = __webpack_require__(5);
+const logger = __webpack_require__(6);
+const bodyParser = __webpack_require__(7);
+const blockchain_1 = __webpack_require__(8);
+const util_1 = __webpack_require__(1);
+const _ = __webpack_require__(0);
 // Creates and configures an ExpressJS web server.
 class App {
     //Run configuration methods on the Express instance.
@@ -127,14 +161,16 @@ class App {
             new blockchain_1.default().getToken(symbol).then((token) => {
                 res.type('text/plain');
                 res.send(`Token ${token.name} (${token.symbol}) found at address ${token.address}`);
-            });
+            }).catch(next);
         });
-        router.get('/api/v0/Address/transfer/:to/:amount', (req, res, next) => {
+        router.get('/api/v0/Address/:from/transfer/:to/:amountInUnits/:symbol?', (req, res, next) => {
+            const fromAddress = req.params.from;
             const toAddress = req.params.to;
-            const amount = new BigNumber(req.params.amount);
-            new blockchain_1.default().transferZRXTo(toAddress, amount).then((receipt) => {
+            const amount = util_1.Utils.toBaseUnit(req.params.amountInUnits);
+            const symbol = req.params.symbol;
+            new blockchain_1.default().transferTo(fromAddress, toAddress, amount, symbol).then((receipt) => {
                 res.json(receipt);
-            });
+            }).catch(next);
         });
         router.get('/api/v0/Address/:address/balance/:symbol?', (req, res, next) => {
             const address = req.params.address;
@@ -142,73 +178,116 @@ class App {
             new blockchain_1.default().getBalance(address, symbol).then((amount) => {
                 res.type('text/plain');
                 res.send(amount.toString());
-            });
+            }).catch(next);
         });
-        router.get('/api/v0/Trade/:symbol/:amount/:toAddress', (req, res, next) => {
+        router.get('/api/v0/Address/:address/allowance/:symbol/:amountInUnits?', (req, res, next) => {
+            const address = req.params.address;
             const symbol = req.params.symbol;
-            const amount = new BigNumber(req.params.amount);
+            let amount = util_1.Utils.toBaseUnit(0);
+            if (!_.isUndefined(req.params.amountInUnits)) {
+                amount = util_1.Utils.toBaseUnit(req.params.amountInUnits);
+            }
+            new blockchain_1.default().setAllowance(address, symbol, amount).then(() => {
+                res.type('text/plain');
+                res.send('Sucesso');
+            }).catch(next);
+        });
+        router.get('/api/v0/Address/:address/deposit/:amountInUnits', (req, res, next) => {
+            const address = req.params.address;
+            let amount = util_1.Utils.toBaseUnit(req.params.amountInUnits);
+            new blockchain_1.default().depositWeth(address, amount).then(() => {
+                res.type('text/plain');
+                res.send('Sucesso');
+            }).catch(next);
+        });
+        router.get('/api/v0/Address/:address/withdraw/:amountInUnits', (req, res, next) => {
+            const address = req.params.address;
+            let amount = util_1.Utils.toBaseUnit(req.params.amountInUnits);
+            new blockchain_1.default().withdrawWeth(address, amount).then(() => {
+                res.type('text/plain');
+                res.send('Sucesso');
+            }).catch(next);
+        });
+        router.get('/api/v0/Trade/:symbol/:amountInUnits/:toAddress', (req, res, next) => {
+            const symbol = req.params.symbol;
+            const amount = util_1.Utils.toBaseUnit(req.params.amountInUnits);
             const takerAddress = req.params.toAddress;
             new blockchain_1.default().getSignedOrder(symbol).then((order) => {
-                new blockchain_1.default().fillOrder(order, amount, takerAddress).then((transactionHash) => {
-                    const returned = order;
-                    returned.tx = transactionHash;
-                    res.json(returned);
-                });
-            });
+                new blockchain_1.default().fillOrder(order, amount, takerAddress).then((transaction) => {
+                    res.json(transaction);
+                }).catch(next);
+            }).catch(next);
+        });
+        router.get('/api/v0/Coinbase/:symbol?', (req, res, next) => {
+            const symbol = req.params.symbol;
+            new blockchain_1.default().getCoinbase(symbol).then((address) => {
+                res.json(address);
+            }).catch(next);
         });
         // placeholder route handler
         router.get('/', (req, res, next) => {
             res.json({
-                message: 'Hello World 2!'
+                message: 'Hello World!'
             });
         });
         this.express.use('/', router);
+        this.express.use((err, req, res, next) => {
+            res.status(err.status || 500);
+            res.json({
+                message: err.message,
+                error: err
+            });
+        });
     }
 }
 exports.default = new App().express;
 
 
 /***/ }),
-/* 3 */
+/* 5 */
 /***/ (function(module, exports) {
 
 module.exports = require("express");
 
 /***/ }),
-/* 4 */
+/* 6 */
 /***/ (function(module, exports) {
 
 module.exports = require("morgan");
 
 /***/ }),
-/* 5 */
+/* 7 */
 /***/ (function(module, exports) {
 
 module.exports = require("body-parser");
 
 /***/ }),
-/* 6 */
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const _0x_js_1 = __webpack_require__(7);
-const Web3 = __webpack_require__(8);
-const BigNumber = __webpack_require__(0);
-const _ = __webpack_require__(9);
+const _0x_js_1 = __webpack_require__(9);
+const Web3 = __webpack_require__(10);
+const _ = __webpack_require__(0);
+const util_1 = __webpack_require__(1);
+const moment = __webpack_require__(11);
 class Blockchain {
     constructor() {
         this.web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
         this.zeroEx = new _0x_js_1.ZeroEx(this.web3.currentProvider);
     }
     async getToken(symbol) {
-        return await this.zeroEx.tokenRegistry.getTokenBySymbolIfExistsAsync(symbol);
+        return this.zeroEx.tokenRegistry.getTokenBySymbolIfExistsAsync(symbol);
     }
-    async transferZRXTo(address, amount) {
-        const token = await this.getToken('ZRX');
-        const txHash = await this.zeroEx.token.transferAsync(token.address, this.web3.eth.coinbase, address, amount);
-        return await this.zeroEx.awaitTransactionMinedAsync(txHash);
+    async transferTo(fromAddress, toAddress, amount, symbol) {
+        if (_.isUndefined(symbol)) {
+            symbol = 'WETH';
+        }
+        const token = await this.getToken(symbol);
+        const txHash = await this.zeroEx.token.transferAsync(token.address, fromAddress, toAddress, amount);
+        return this.zeroEx.awaitTransactionMinedAsync(txHash);
     }
     async getBalance(address, symbol) {
         if (!_.isUndefined(symbol) && symbol !== '') {
@@ -219,51 +298,71 @@ class Blockchain {
             return this.web3.eth.getBalance(address);
         }
     }
+    async setAllowance(address, symbol, amount) {
+        const token = await this.getToken(symbol);
+        const txHash = await this.zeroEx.token.setProxyAllowanceAsync(token.address, address, amount);
+        await this.zeroEx.awaitTransactionMinedAsync(txHash);
+    }
+    async depositWeth(address, amount) {
+        const txHash = await this.zeroEx.etherToken.depositAsync(amount, address);
+        await this.zeroEx.awaitTransactionMinedAsync(txHash);
+    }
+    async withdrawWeth(address, amount) {
+        const txHash = await this.zeroEx.etherToken.withdrawAsync(amount, address);
+        await this.zeroEx.awaitTransactionMinedAsync(txHash);
+    }
     async getSignedOrder(symbol) {
         const token = await this.getToken(symbol);
         const order = {
             ecSignature: null,
             exchangeContractAddress: await this.zeroEx.exchange.getContractAddressAsync(),
-            expirationUnixTimestampSec: new BigNumber(0),
+            expirationUnixTimestampSec: util_1.Utils.toUnixTimestamp(moment().add(1, 'h')),
             feeRecipient: this.web3.eth.coinbase,
             maker: this.web3.eth.coinbase,
-            makerFee: new BigNumber('0'),
+            makerFee: util_1.Utils.toBaseUnit(0),
             makerTokenAddress: token.address,
-            makerTokenAmount: await this.getBalance(token.address, symbol),
+            makerTokenAmount: util_1.Utils.toBaseUnit(50),
             taker: '0x0000000000000000000000000000000000000000',
-            takerFee: new BigNumber('0'),
+            takerFee: util_1.Utils.toBaseUnit(0),
             takerTokenAddress: await this.zeroEx.etherToken.getContractAddressAsync(),
-            takerTokenAmount: new BigNumber('1'),
+            takerTokenAmount: util_1.Utils.toBaseUnit(1),
             salt: _0x_js_1.ZeroEx.generatePseudoRandomSalt()
         };
         const orderHash = _0x_js_1.ZeroEx.getOrderHashHex(order);
         order.ecSignature = await this.zeroEx.signOrderHashAsync(orderHash, this.web3.eth.coinbase);
         return order;
     }
+    async getCoinbase(symbol) {
+        return {
+            address: this.web3.eth.coinbase,
+            balance: await this.getBalance(this.web3.eth.coinbase, symbol)
+        };
+    }
     async fillOrder(order, takerAmount, takerAddress) {
-        return this.zeroEx.exchange.fillOrderAsync(order, takerAmount, false, takerAddress);
+        const txHash = await this.zeroEx.exchange.fillOrderAsync(order, takerAmount, false, takerAddress);
+        return this.zeroEx.awaitTransactionMinedAsync(txHash);
     }
 }
 exports.default = Blockchain;
 
 
 /***/ }),
-/* 7 */
+/* 9 */
 /***/ (function(module, exports) {
 
 module.exports = require("0x.js");
 
 /***/ }),
-/* 8 */
+/* 10 */
 /***/ (function(module, exports) {
 
 module.exports = require("web3");
 
 /***/ }),
-/* 9 */
+/* 11 */
 /***/ (function(module, exports) {
 
-module.exports = require("lodash");
+module.exports = require("moment");
 
 /***/ })
 /******/ ]);
